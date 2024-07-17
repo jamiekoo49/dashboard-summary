@@ -10,11 +10,24 @@ def load_excel(file_name, sheet_name):
         if isinstance(x, (int, float)) and x is not None:
             return round(x / 1_000_000, 1)
         return x
+    def extract_tables(sheet_data):
+        tables = {}
+        num_columns = sheet_data.shape[1]
+        table_count = 1
+        for start_col in range(0, num_columns, 3):
+            end_col = start_col + 2
+            if end_col < num_columns:
+                current_table = sheet_data.iloc[:, start_col:end_col]
+                current_table.columns = sheet_data.columns[start_col:end_col]
+                tables[f"table_{table_count}"] = current_table
+                table_count += 1
+        return tables
     data = pd.read_excel(file_name, sheet_name=sheet_name, engine='openpyxl')
     data = data.applymap(round_to_millions)
-    return data
+    tables = extract_tables(data)
+    return tables
 
-cpdf = load_excel('data/PowerBI_Dashboard_data.xlsx', 'CP-DF Summary')
+cpdf = load_excel('data/PowerBI Dashboard data - Copy.xlsx', 'CP-DF Summary')
 app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 def create_plot(data, x_column, y_column, title, color='royalblue'):
@@ -34,11 +47,11 @@ def create_plot(data, x_column, y_column, title, color='royalblue'):
     return fig
 
 figures = {
-    'fig1': create_plot(cpdf, 'Name_12', 'Total Secondary Purchases and Sales by Counterparty', 'Total Secondary Purchases and Sales by Counterparty from 6/30/2023 to 6/30/2024 (MM)'),
-    'fig2': create_plot(cpdf, 'Name_4', 'Trading Volume Primary Buys 2', 'Primary Buys by Counterparty From 6/30/2023 to 6/30/2024 (MM)'),
-    'fig3': create_plot(cpdf, 'Name_1', 'Total Trading Volume', 'Trading Volume by Counterparty From 6/30/2023 to 6/30/2024 (MM)'),
-    'fig4': create_plot(cpdf, 'Name_2', 'Trading Volume Buys', 'Primary and Secondary Buys by Counterparty from 6/30/2023 to 6/30/2024 (MM)'),
-    'fig5': create_plot(cpdf, 'Name_3', 'Trading Volume Sells 2', 'Sells by Counterparty From 6/30/2023 to 6/30/2024 (MM)')
+    'fig1': create_plot(cpdf['table_12'], cpdf['table_12'].columns[0], cpdf['table_12'].columns[1], 'Total Secondary Purchases and Sales by Counterparty from 6/30/2023 to 6/30/2024 (MM)'),
+    'fig2': create_plot(cpdf['table_4'], cpdf['table_4'].columns[0], cpdf['table_4'].columns[1], 'Primary Buys by Counterparty From 6/30/2023 to 6/30/2024 (MM)'),
+    'fig3': create_plot(cpdf['table_1'], cpdf['table_1'].columns[0], cpdf['table_1'].columns[1], 'Trading Volume by Counterparty From 6/30/2023 to 6/30/2024 (MM)'),
+    'fig4': create_plot(cpdf['table_2'], cpdf['table_2'].columns[0], cpdf['table_2'].columns[1], 'Primary and Secondary Buys by Counterparty from 6/30/2023 to 6/30/2024 (MM)'),
+    'fig5': create_plot(cpdf['table_3'], cpdf['table_3'].columns[0], cpdf['table_3'].columns[1], 'Sells by Counterparty From 6/30/2023 to 6/30/2024 (MM)')
 }
 
 app.layout = html.Div([
@@ -128,20 +141,15 @@ def update_graph(btn1, btn2, btn3, btn4, btn5, close, is_open):
     }
     fig_id = button_to_fig[button_id]
     fig = figures[fig_id]
-    columns_map = {
-        'fig1': ['Name_12', 'Total Secondary Purchases and Sales by Counterparty'],
-        'fig2': ['Name_4', 'Trading Volume Primary Buys 2'],
-        'fig3': ['Name_1', 'Total Trading Volume'],
-        'fig4': ['Name_2', 'Trading Volume Buys'],
-        'fig5': ['Name_3', 'Trading Volume Sells 2']
-    }
-    columns = columns_map[fig_id]
+    data = cpdf[fig_id.replace('fig', 'table_')]
+    columns = data.columns
     data_table = dash_table.DataTable(
         columns=[{"name": col, "id": col} for col in columns],
-        data=cpdf[columns].to_dict('records'),
+        data=data.to_dict('records'),
         page_size=10
     )
     return fig, data_table, True
 
 if __name__ == '__main__':
     app.run_server(debug=True)
+
